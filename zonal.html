@@ -1,0 +1,1661 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>zoNal</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #F6FCEA;
+    color: #00FF41;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    font-weight: 300;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    cursor: grab;
+  }
+  body.dragging { cursor: grabbing; }
+
+  #vortex {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 0;
+  }
+
+  #logo {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 100;
+    user-select: none;
+    overflow: hidden;
+  }
+  #logo img {
+    height: 195px;
+    width: auto;
+    display: block;
+    margin-top: -12px;
+    margin-left: -28px;
+  }
+
+  #canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  #overlay-canvas {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 2;
+    pointer-events: none;
+  }
+
+  #nodes-layer {
+    position: fixed;
+    top: 0; left: 0;
+    width: 100%; height: 100%;
+    z-index: 3;
+    pointer-events: none;
+    transform-origin: 0 0;
+  }
+
+  #input-wrap {
+    position: fixed;
+    bottom: 48px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 0;
+  }
+
+  #search-input {
+    background: #F6FCEA;
+    border: 1.5px solid #00FF41;
+    color: #0A0A0A;
+    font-family: inherit;
+    font-weight: 300;
+    font-size: 14px;
+    letter-spacing: 0.05em;
+    padding: 12px 24px;
+    border-radius: 999px 0 0 999px;
+    outline: none;
+    width: 420px;
+    transition: all 0.3s ease;
+    caret-color: #0A0A0A;
+    box-shadow: 0 0 18px rgba(0,255,65,0.6), 0 0 40px rgba(0,255,65,0.3);
+  }
+  #search-input::placeholder { color: rgba(0,0,0,0.45); }
+  #search-input:focus {
+    box-shadow: 0 0 28px rgba(0,255,65,0.9), 0 0 60px rgba(0,255,65,0.4);
+  }
+
+  #submit-btn {
+    background: #F6FCEA;
+    border: 1.5px solid #00FF41;
+    border-left: none;
+    color: #0A0A0A;
+    font-family: inherit;
+    font-size: 18px;
+    padding: 12px 20px;
+    border-radius: 0 999px 999px 0;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    outline: none;
+    line-height: 1;
+    box-shadow: 0 0 18px rgba(0,255,65,0.6), 0 0 40px rgba(0,255,65,0.3);
+  }
+  #submit-btn:hover {
+    background: #00ff41cc;
+    box-shadow: 0 0 28px rgba(0,255,65,0.9), 0 0 60px rgba(0,255,65,0.4);
+  }
+
+  #overlap-toggle {
+    position: fixed;
+    bottom: 54px;
+    left: 200px;
+    z-index: 10;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    color: #555;
+    user-select: none;
+    cursor: pointer;
+  }
+  #overlap-toggle .toggle-label { color: #555; }
+  #overlap-toggle .toggle-state { color: #888; transition: color 0.3s; }
+  #overlap-toggle.on .toggle-state { color: #0A0A0A; }
+
+  #now-playing {
+    position: fixed;
+    top: 16px;
+    right: 16px;
+    z-index: 100;
+    background: #F6FCEA;
+    border: 1.5px solid #00FF41;
+    box-shadow: 0 0 16px rgba(0,255,65,0.25);
+    border-radius: 10px;
+    padding: 10px 14px;
+    width: 272px;
+    display: none;
+  }
+  #now-playing-header {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    color: #888;
+    text-transform: none;
+    margin-bottom: 8px;
+  }
+  .np-row {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    padding: 3px 0;
+    border-bottom: 1px solid rgba(0,0,0,0.08);
+    animation: npFadeIn 0.35s ease;
+  }
+  .np-row:last-child { border-bottom: none; }
+  .np-dot {
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: #00FF41;
+    flex-shrink: 0;
+    animation: npPulse 1.4s ease-in-out infinite;
+    margin-top: 1px;
+  }
+  .np-text {
+    font-size: 11px;
+    color: #0A0A0A;
+    line-height: 1.4;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .np-text span { color: #666; font-size: 10px; }
+  @keyframes npFadeIn {
+    from { opacity: 0; transform: translateY(-4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes npPulse {
+    0%,100% { opacity: 1; }
+    50%      { opacity: 0.3; }
+  }
+  #overlap-toggle .toggle-track {
+    width: 40px;
+    height: 20px;
+    border-radius: 999px;
+    background: #2a2a2a;
+    border: 1px solid #444;
+    position: relative;
+    transition: background 0.3s, border-color 0.3s, box-shadow 0.3s;
+    flex-shrink: 0;
+  }
+  #overlap-toggle.on .toggle-track {
+    background: #F6FCEA;
+    border-color: #00FF41;
+    box-shadow: 0 0 8px rgba(0,255,65,0.35);
+  }
+  #overlap-toggle .toggle-thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #444;
+    transition: transform 0.3s, background 0.3s, box-shadow 0.3s;
+  }
+  #overlap-toggle.on .toggle-thumb {
+    transform: translateX(20px);
+    background: #b3ffcc;
+    box-shadow: 0 0 6px rgba(179,255,204,0.8);
+  }
+
+  #api-key-banner {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 200;
+    background: #111;
+    border: 1px solid #00FF41;
+    border-radius: 8px;
+    padding: 10px 20px;
+    font-size: 12px;
+    color: #00FF41;
+    text-align: center;
+    display: none;
+  }
+
+  .node {
+    position: absolute;
+    background: transparent;
+    color: #0A0A0A;
+    border: 1.5px solid #00FF41;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+    padding: 6px 14px;
+    pointer-events: auto;
+    cursor: pointer;
+    opacity: 0;
+    transform: scale(0.8);
+    transition: opacity 0.4s ease, transform 0.4s ease, box-shadow 0.3s ease;
+    box-shadow: 0 0 8px rgba(0,255,65,0.3);
+    user-select: none;
+  }
+  .node.visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+  .node.central {
+    background: #00FF41;
+    color: #0A0A0A;
+    border: none;
+    font-size: 14px;
+    font-weight: 500;
+    padding: 10px 22px;
+    box-shadow: 0 0 24px rgba(0,255,65,0.7), 0 0 48px rgba(0,255,65,0.35);
+    animation: pulse 2.4s ease-in-out infinite;
+    z-index: 5;
+  }
+  .node:hover {
+    box-shadow: 0 0 18px rgba(0,255,65,0.8), 0 0 36px rgba(0,255,65,0.3);
+    transform: scale(1.05);
+  }
+  .node.error-node {
+    color: #555;
+    background: #eee;
+    border: 1px solid #ccc;
+    font-style: italic;
+    box-shadow: none;
+  }
+
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 24px rgba(0,255,65,0.7), 0 0 48px rgba(0,255,65,0.35); }
+    50% { box-shadow: 0 0 36px rgba(0,255,65,1), 0 0 70px rgba(0,255,65,0.5); }
+  }
+
+  #loading-indicator {
+    position: fixed;
+    bottom: 110px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 10;
+    color: #333;
+    font-size: 12px;
+    letter-spacing: 0.1em;
+    opacity: 0;
+    transition: opacity 0.3s;
+  }
+  #loading-indicator.visible { opacity: 1; }
+
+  @media print {
+    #input-wrap, #overlap-toggle, #zone-actions, #loading-indicator, #api-key-banner { display: none !important; }
+    body { overflow: visible; background: #F6FCEA; }
+    #vortex, #canvas, #overlay-canvas, #nodes-layer, #logo, #now-playing { position: absolute; }
+  }
+
+  #zone-actions {
+    position: fixed;
+    bottom: 48px;
+    left: 32px;
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+  #zone-menu {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    overflow: hidden;
+    max-height: 0;
+    opacity: 0;
+    transition: max-height 0.35s ease, opacity 0.25s ease;
+  }
+  #zone-menu.open {
+    max-height: 200px;
+    opacity: 1;
+  }
+  .zone-btn {
+    background: #F6FCEA;
+    border: 1.5px solid #00FF41;
+    color: #0A0A0A;
+    font-family: inherit;
+    font-size: 11px;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    padding: 7px 14px;
+    border-radius: 999px;
+    cursor: pointer;
+    transition: box-shadow 0.2s;
+    outline: none;
+    box-shadow: 0 0 8px rgba(0,255,65,0.2);
+    white-space: nowrap;
+  }
+  .zone-btn:hover {
+    box-shadow: 0 0 16px rgba(0,255,65,0.5);
+  }
+  #zone-toggle-btn {
+    background: #F6FCEA;
+    color: #0A0A0A;
+    font-weight: 400;
+    font-size: 11px;
+    padding: 9px 18px;
+    box-shadow: 0 0 8px rgba(0,255,65,0.2);
+    border-color: #00FF41;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+  }
+  #zone-toggle-btn::after {
+    content: '↑';
+    font-size: 10px;
+    transition: transform 0.25s ease;
+    display: inline-block;
+  }
+  #zone-toggle-btn.open::after {
+    transform: rotate(180deg);
+  }
+  #zone-toggle-btn:hover {
+    box-shadow: 0 0 16px rgba(0,255,65,0.5);
+  }
+  #load-input { display: none; }
+
+  /* ─── VISUAL PROFILE PANEL ─────────────────────────────────────────────── */
+  #profile-panel {
+    position: fixed;
+    top: calc(100vh - 272px - 32px);
+    left: calc(100vw - 272px - 32px);
+    z-index: 100;
+    width: 272px;
+    height: 272px;
+    border: 1.5px solid #00FF41;
+    box-shadow: 0 0 12px rgba(0,255,65,0.25);
+    border-radius: 6px;
+    overflow: hidden;
+    background: #F6FCEA;
+    display: flex;
+    flex-direction: column;
+    user-select: none;
+    cursor: pointer;
+    transition: width 0.45s cubic-bezier(0.4,0,0.2,1),
+                height 0.45s cubic-bezier(0.4,0,0.2,1),
+                top 0.45s cubic-bezier(0.4,0,0.2,1),
+                left 0.45s cubic-bezier(0.4,0,0.2,1),
+                transform 0.45s cubic-bezier(0.4,0,0.2,1),
+                box-shadow 0.45s ease;
+  }
+  #profile-panel.expanded {
+    width: 544px;
+    height: 544px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    box-shadow: 0 0 48px rgba(0,255,65,0.35);
+    cursor: default;
+    border-radius: 10px;
+  }
+  #profile-header {
+    font-size: 7px;
+    letter-spacing: 0.14em;
+    color: #888;
+    text-transform: lowercase;
+    text-align: center;
+    padding: 4px 4px 2px;
+    border-bottom: 1px solid rgba(0,255,65,0.2);
+    flex-shrink: 0;
+  }
+  #profile-canvas {
+    display: block;
+    flex: 1;
+    width: 100%;
+  }
+  #profile-footer {
+    font-size: 7.5px;
+    letter-spacing: 0.1em;
+    color: #555;
+    text-align: center;
+    padding: 4px 6px;
+    border-top: 1px solid rgba(0,255,65,0.2);
+    background: #F6FCEA;
+    flex-shrink: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.4s;
+  }
+  #profile-footer.active { color: #0A0A0A; }
+</style>
+</head>
+<body>
+
+<svg id="vortex" viewBox="0 0 1440 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg"></svg>
+
+<canvas id="canvas"></canvas>
+<canvas id="overlay-canvas"></canvas>
+
+<div id="nodes-layer"></div>
+
+<div id="logo">
+  <img src="zonal logo pale.png?v=2" alt="zoNal" />
+</div>
+
+<div id="profile-panel">
+  <div id="profile-header">your profile</div>
+  <canvas id="profile-canvas"></canvas>
+  <div id="profile-footer">drop something to begin</div>
+</div>
+
+<div id="api-key-banner">Add your Last.fm API key — find <code>YOUR_LASTFM_API_KEY</code> in the source and replace it.</div>
+
+<div id="now-playing">
+  <div id="now-playing-header">playing in your zone...</div>
+</div>
+
+<div id="loading-indicator">mapping signal...</div>
+
+<div id="zone-actions">
+  <div id="zone-menu">
+    <button class="zone-btn" id="save-btn">save zone</button>
+    <button class="zone-btn" id="load-btn">load zone</button>
+    <button class="zone-btn" id="pdf-btn">export pdf</button>
+  </div>
+  <button class="zone-btn" id="zone-toggle-btn">your zones</button>
+  <input type="file" id="load-input" accept=".zone" />
+</div>
+
+<div id="overlap-toggle" class="on">
+  <span class="toggle-label">overlap</span>
+  <div class="toggle-track"><div class="toggle-thumb"></div></div>
+  <span class="toggle-state">on</span>
+</div>
+
+<div id="input-wrap">
+  <input id="search-input" type="text" placeholder="drop your... word or song or artist or album or genre" autocomplete="off" spellcheck="false" />
+  <button id="submit-btn">→</button>
+</div>
+
+<script>
+// ─── CONFIG ───────────────────────────────────────────────────────────────────
+const API_KEY = 'db4935bd48613a52a0cd352a036fbc8e';
+const BASE_URL = 'https://ws.audioscrobbler.com/2.0/';
+
+// ─── VISUAL PROFILE ───────────────────────────────────────────────────────────
+const CATEGORY_TAGS = {
+  reflective: new Set([
+    'classical','jazz','folk','blues','acoustic','baroque','ambient','chamber',
+    'instrumental','bossa nova','indie folk','singer-songwriter','neoclassical',
+    'piano','orchestral','opera','new age','contemporary classical','big band',
+    'cool jazz','bebop','fusion','world','celtic','flamenco','country folk'
+  ]),
+  intense: new Set([
+    'rock','alternative','heavy metal','punk','grunge','indie','hardcore','metal',
+    'post-rock','noise','shoegaze','emo','gothic','industrial','death metal',
+    'black metal','thrash metal','hard rock','progressive rock','psychedelic',
+    'stoner rock','doom metal','post-punk','new wave','art rock','math rock'
+  ]),
+  upbeat: new Set([
+    'pop','country','religious','r&b','mainstream','adult contemporary',
+    'easy listening','gospel','christian','top 40','teen pop','dance pop',
+    'boy band','girl group','soft rock','bubblegum','pop rock','broadway',
+    'musical','soundtrack','christmas','holiday'
+  ]),
+  energetic: new Set([
+    'hip-hop','hip hop','soul','funk','electronica','electronic','rap','dance',
+    'groove','house','techno','edm','club','drum and bass','trap','bass','disco',
+    'jungle','rnb','afrobeats','dancehall','reggaeton','dubstep','garage',
+    'grime','bounce','jersey club','footwork','uk bass'
+  ])
+};
+
+const CATEGORY_LABELS = {
+  reflective: 'reflective & complex',
+  intense:    'intense & rebellious',
+  upbeat:     'upbeat & conventional',
+  energetic:  'energetic & rhythmic'
+};
+
+// Category node positions in the profile canvas (set after init)
+// Diamond layout: energetic top, upbeat left, reflective right, intense bottom
+let CAT_POS = {};
+
+const profileScores  = { reflective: 0, intense: 0, upbeat: 0, energetic: 0 };
+const arcCounts      = { reflective: 0, intense: 0, upbeat: 0, energetic: 0 };
+const profileLines   = []; // { from, to } — lighter lines for cross-category links
+
+let profileExpanded = false;
+
+// Hardcoded node positions per mode — designed with label clearance built in.
+// Small (canvas 272×236): labels at 9px, abbreviated
+// Expanded (canvas 544×508): labels at 12px, full names
+const PROFILE_MODES = {
+  small: {
+    W: 272, cH: 236,
+    nodes: {
+      energetic:  { x: 136, y: 42  },
+      upbeat:     { x: 68,  y: 118 },
+      reflective: { x: 204, y: 118 },
+      intense:    { x: 136, y: 194 }
+    },
+    arcBase: 8, arcStep: 8,
+    dotActive: 4, dotInactive: 2,
+    fontSize: 9, lineWidth: 1,
+    labels: {
+      energetic:  { x: 136, y: 26,  align: 'center' },
+      upbeat:     { x: 60,  y: 121, align: 'right'  },
+      reflective: { x: 212, y: 121, align: 'left'   },
+      intense:    { x: 136, y: 212, align: 'center' }
+    },
+    labelText: {
+      energetic: 'energetic', upbeat: 'upbeat',
+      reflective: 'reflective', intense: 'intense'
+    }
+  },
+  expanded: {
+    W: 544, cH: 508,
+    nodes: {
+      energetic:  { x: 272, y: 80  },
+      upbeat:     { x: 140, y: 254 },
+      reflective: { x: 404, y: 254 },
+      intense:    { x: 272, y: 428 }
+    },
+    arcBase: 14, arcStep: 14,
+    dotActive: 7, dotInactive: 3.5,
+    fontSize: 12, lineWidth: 1.5,
+    labels: {
+      energetic:  { x: 272, y: 58,  align: 'center' },
+      upbeat:     { x: 128, y: 258, align: 'right'  },
+      reflective: { x: 416, y: 258, align: 'left'   },
+      intense:    { x: 272, y: 452, align: 'center' }
+    },
+    labelText: {
+      energetic: 'energetic & rhythmic', upbeat: 'upbeat & conv.',
+      reflective: 'reflective & complex', intense: 'intense & rebellious'
+    }
+  }
+};
+
+function initProfileCanvas() {
+  applyProfileMode();
+}
+
+function applyProfileMode() {
+  const mode = profileExpanded ? PROFILE_MODES.expanded : PROFILE_MODES.small;
+  const canvas = document.getElementById('profile-canvas');
+  const dpr = window.devicePixelRatio || 1;
+
+  canvas.width  = mode.W  * dpr;
+  canvas.height = mode.cH * dpr;
+  canvas.style.width  = mode.W  + 'px';
+  canvas.style.height = mode.cH + 'px';
+
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.scale(dpr, dpr);
+
+  CAT_POS = mode.nodes;
+  drawProfileCanvas();
+}
+
+let _profileAnimRaf = null;
+const PROFILE_DURATION = 450;
+
+function easeInOut(t) {
+  // matches CSS cubic-bezier(0.4,0,0.2,1)
+  return t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+}
+
+function lerp(a, b, t) { return a + (b - a) * t; }
+
+function animateProfile(fromExpanded, toExpanded) {
+  if (_profileAnimRaf) cancelAnimationFrame(_profileAnimRaf);
+  const sm = PROFILE_MODES.small, ex = PROFILE_MODES.expanded;
+  const from = fromExpanded ? ex : sm;
+  const to   = toExpanded   ? ex : sm;
+  const startT = performance.now();
+
+  function frame(now) {
+    const raw = Math.min((now - startT) / PROFILE_DURATION, 1);
+    const t   = easeInOut(raw);
+
+    // Canvas dimensions interpolated
+    const W  = Math.round(lerp(from.W,  to.W,  t));
+    const cH = Math.round(lerp(from.cH, to.cH, t));
+    const canvas = document.getElementById('profile-canvas');
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = W  * dpr;
+    canvas.height = cH * dpr;
+    canvas.style.width  = W  + 'px';
+    canvas.style.height = cH + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.scale(dpr, dpr);
+    ctx.clearRect(0, 0, W, cH);
+
+    // Node + label positions interpolated
+    const nodes = {}, lblPos = {};
+    Object.keys(sm.nodes).forEach(cat => {
+      nodes[cat] = {
+        x: lerp(from.nodes[cat].x, to.nodes[cat].x, t),
+        y: lerp(from.nodes[cat].y, to.nodes[cat].y, t)
+      };
+      lblPos[cat] = {
+        x:     lerp(from.labels[cat].x, to.labels[cat].x, t),
+        y:     lerp(from.labels[cat].y, to.labels[cat].y, t),
+        align: from.labels[cat].align
+      };
+    });
+
+    // Visual properties interpolated
+    const arcBase   = lerp(from.arcBase,    to.arcBase,    t);
+    const arcStep   = lerp(from.arcStep,    to.arcStep,    t);
+    const dotActive = lerp(from.dotActive,  to.dotActive,  t);
+    const dotInact  = lerp(from.dotInactive,to.dotInactive,t);
+    const fontSize  = lerp(from.fontSize,   to.fontSize,   t);
+    const lw        = lerp(from.lineWidth,  to.lineWidth,  t);
+
+    // Label text: crossfade opacity around midpoint
+    const smAlpha = Math.max(0, 1 - t * 2.5);
+    const exAlpha = Math.max(0, (t - 0.4) * 2.5);
+
+    // Lines
+    profileLines.forEach(({ from: f, to: tt }) => {
+      const a = nodes[f], b = nodes[tt];
+      ctx.beginPath(); ctx.moveTo(a.x, a.y); ctx.lineTo(b.x, b.y);
+      ctx.strokeStyle = 'rgba(0,255,65,0.2)'; ctx.lineWidth = lw; ctx.stroke();
+    });
+
+    // Arcs
+    Object.keys(arcCounts).forEach(cat => {
+      const n = arcCounts[cat]; if (!n) return;
+      const { x, y } = nodes[cat];
+      for (let i = 0; i < n; i++) {
+        const r = arcBase + i * arcStep;
+        const alpha = Math.max(0.07, 0.7 - i * 0.06);
+        ctx.beginPath(); ctx.arc(x, y, r, 0, Math.PI * 2);
+        ctx.strokeStyle = `rgba(0,255,65,${alpha})`; ctx.lineWidth = lw; ctx.stroke();
+      }
+    });
+
+    // Dots
+    Object.keys(nodes).forEach(cat => {
+      const { x, y } = nodes[cat];
+      const active = arcCounts[cat] > 0 || profileLines.some(l => l.from === cat || l.to === cat);
+      ctx.beginPath(); ctx.arc(x, y, active ? dotActive : dotInact, 0, Math.PI * 2);
+      ctx.fillStyle = active ? '#00FF41' : 'rgba(0,255,65,0.3)'; ctx.fill();
+    });
+
+    // Labels — crossfade between short and full text
+    ctx.font = `${fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+    Object.keys(lblPos).forEach(cat => {
+      const lbl = lblPos[cat];
+      ctx.textAlign = lbl.align;
+      if (smAlpha > 0) {
+        ctx.fillStyle = `rgba(136,136,136,${smAlpha})`;
+        ctx.fillText(sm.labelText[cat], lbl.x, lbl.y);
+      }
+      if (exAlpha > 0) {
+        ctx.fillStyle = `rgba(136,136,136,${exAlpha})`;
+        ctx.fillText(ex.labelText[cat], lbl.x, lbl.y);
+      }
+    });
+
+    CAT_POS = nodes;
+
+    if (raw < 1) {
+      _profileAnimRaf = requestAnimationFrame(frame);
+    } else {
+      _profileAnimRaf = null;
+      applyProfileMode(); // snap to exact final state
+    }
+  }
+  _profileAnimRaf = requestAnimationFrame(frame);
+}
+
+function expandProfile() {
+  if (profileExpanded) return;
+  profileExpanded = true;
+  document.getElementById('profile-panel').classList.add('expanded');
+  animateProfile(false, true);
+}
+
+function collapseProfile() {
+  if (!profileExpanded) return;
+  profileExpanded = false;
+  document.getElementById('profile-panel').classList.remove('expanded');
+  animateProfile(true, false);
+}
+
+function drawProfileCanvas() {
+  const canvas = document.getElementById('profile-canvas');
+  if (!canvas || !CAT_POS.intense) return;
+  const mode = profileExpanded ? PROFILE_MODES.expanded : PROFILE_MODES.small;
+  const dpr = window.devicePixelRatio || 1;
+  const W = canvas.width / dpr, H = canvas.height / dpr;
+  const ctx = canvas.getContext('2d');
+  ctx.clearRect(0, 0, W, H);
+
+  // Lines (under arcs)
+  profileLines.forEach(({ from, to }) => {
+    const a = CAT_POS[from], b = CAT_POS[to];
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.strokeStyle = 'rgba(0,255,65,0.2)';
+    ctx.lineWidth = mode.lineWidth;
+    ctx.stroke();
+  });
+
+  // Concentric arcs
+  Object.keys(arcCounts).forEach(cat => {
+    const n = arcCounts[cat];
+    if (n === 0) return;
+    const { x, y } = CAT_POS[cat];
+    for (let i = 0; i < n; i++) {
+      const r = mode.arcBase + i * mode.arcStep;
+      const alpha = Math.max(0.07, 0.7 - i * 0.06);
+      ctx.beginPath();
+      ctx.arc(x, y, r, 0, Math.PI * 2);
+      ctx.strokeStyle = `rgba(0,255,65,${alpha})`;
+      ctx.lineWidth = mode.lineWidth;
+      ctx.stroke();
+    }
+  });
+
+  // Dots
+  Object.keys(CAT_POS).forEach(cat => {
+    const { x, y } = CAT_POS[cat];
+    const active = arcCounts[cat] > 0 || profileLines.some(l => l.from === cat || l.to === cat);
+    ctx.beginPath();
+    ctx.arc(x, y, active ? mode.dotActive : mode.dotInactive, 0, Math.PI * 2);
+    ctx.fillStyle = active ? '#00FF41' : 'rgba(0,255,65,0.3)';
+    ctx.fill();
+  });
+
+  // Labels — positions guaranteed clear of canvas edges
+  ctx.font = `${mode.fontSize}px -apple-system, BlinkMacSystemFont, sans-serif`;
+  ctx.fillStyle = '#888';
+  Object.keys(mode.labels).forEach(cat => {
+    const lbl = mode.labels[cat];
+    ctx.textAlign = lbl.align;
+    ctx.fillText(mode.labelText[cat], lbl.x, lbl.y);
+  });
+}
+
+function scoreTagsAgainstCategories(tagSet) {
+  // Score this specific prompt against each category
+  const promptScores = {};
+  let total = 0;
+  Object.keys(CATEGORY_TAGS).forEach(cat => {
+    let matches = 0;
+    tagSet.forEach(tag => { if (CATEGORY_TAGS[cat].has(tag)) matches++; });
+    promptScores[cat] = matches;
+    total += matches;
+    if (matches > 0) profileScores[cat] += matches;
+  });
+
+  if (total === 0) return; // no category match — nothing to draw
+
+  // Primary = highest matching category for this prompt → add an arc
+  const primary = Object.keys(promptScores).reduce((a, b) =>
+    promptScores[a] >= promptScores[b] ? a : b
+  );
+  arcCounts[primary]++;
+
+  // Any secondary matches → draw a line connecting them to the primary node
+  Object.keys(promptScores).forEach(cat => {
+    if (cat !== primary && promptScores[cat] > 0) {
+      profileLines.push({ from: cat, to: primary });
+    }
+  });
+
+  drawProfileCanvas();
+
+  // Update footer with overall dominant
+  const overallDominant = Object.keys(profileScores).reduce((a, b) =>
+    profileScores[a] >= profileScores[b] ? a : b
+  );
+  const footer = document.getElementById('profile-footer');
+  footer.textContent = CATEGORY_LABELS[overallDominant];
+  footer.classList.add('active');
+}
+
+// ─── VORTEX GRID ──────────────────────────────────────────────────────────────
+(function drawVortex() {
+  const svg = document.getElementById('vortex');
+  const W = window.innerWidth, H = window.innerHeight;
+  svg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+  const cx = W * 0.72, cy = H * 0.5;
+  const lineColor = '#1a1a1a';
+
+  // Concentric ellipses (sphere grid cross-sections, perspective pulled right)
+  for (let i = 1; i <= 22; i++) {
+    const t = i / 22;
+    const rx = t * W * 0.85;
+    const ry = rx * (0.08 + t * 0.22);
+    const el = document.createElementNS('http://www.w3.org/2000/svg', 'ellipse');
+    el.setAttribute('cx', cx);
+    el.setAttribute('cy', cy);
+    el.setAttribute('rx', rx);
+    el.setAttribute('ry', ry);
+    el.setAttribute('fill', 'none');
+    el.setAttribute('stroke', lineColor);
+    el.setAttribute('stroke-width', '0.6');
+    svg.appendChild(el);
+  }
+
+  // Radial spokes converging to vanishing point on right
+  const vx = W * 0.98, vy = H * 0.5;
+  const spokeCount = 28;
+  for (let i = 0; i < spokeCount; i++) {
+    const angle = (i / spokeCount) * Math.PI * 2;
+    const r = Math.max(W, H) * 1.1;
+    const sx = cx + Math.cos(angle) * r * 0.5;
+    const sy = cy + Math.sin(angle) * r * 0.18;
+    const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    line.setAttribute('x1', vx);
+    line.setAttribute('y1', vy);
+    line.setAttribute('x2', sx);
+    line.setAttribute('y2', sy);
+    line.setAttribute('stroke', lineColor);
+    line.setAttribute('stroke-width', '0.5');
+    svg.appendChild(line);
+  }
+
+  // Vertical latitude lines across ellipses
+  for (let j = -10; j <= 10; j++) {
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    const pts = [];
+    for (let i = 1; i <= 22; i++) {
+      const t = i / 22;
+      const rx = t * W * 0.85;
+      const ry = rx * (0.08 + t * 0.22);
+      const angle = (j / 10) * Math.PI * 0.9;
+      const x = cx + Math.cos(angle) * rx;
+      const y = cy + Math.sin(angle) * ry;
+      pts.push(i === 1 ? `M${x},${y}` : `L${x},${y}`);
+    }
+    path.setAttribute('d', pts.join(' '));
+    path.setAttribute('fill', 'none');
+    path.setAttribute('stroke', lineColor);
+    path.setAttribute('stroke-width', '0.5');
+    svg.appendChild(path);
+  }
+})();
+
+// ─── CANVAS LINES ─────────────────────────────────────────────────────────────
+const canvas = document.getElementById('canvas');
+const ctx = canvas.getContext('2d');
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  overlayCanvas.width = window.innerWidth;
+  overlayCanvas.height = window.innerHeight;
+  redrawLines();
+  renderOverlay();
+}
+
+// ─── STATE ────────────────────────────────────────────────────────────────────
+const clusters = []; // { id, label, cx, cy, centralEl, children: [{el, x, y, label}] }
+const nodeMap = {}; // label → [{cluster, el, x, y}]
+const clusterTags = {}; // label (lowercase) → Set of tag strings
+
+function redrawLines() {
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  clusters.forEach(cluster => {
+    if (!cluster.centralEl) return;
+    const cRect = cluster.centralEl.getBoundingClientRect();
+    const cx2 = cRect.left + cRect.width / 2;
+    const cy2 = cRect.top + cRect.height / 2;
+
+    cluster.children.forEach(child => {
+      if (!child.el) return;
+      const r = child.el.getBoundingClientRect();
+      const x2 = r.left + r.width / 2;
+      const y2 = r.top + r.height / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx2, cy2);
+      ctx.lineTo(x2, y2);
+      ctx.strokeStyle = 'rgba(80,80,80,0.35)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    });
+  });
+
+  // Cross-cluster shared node lines
+  const seen = {};
+  Object.keys(nodeMap).forEach(label => {
+    const entries = nodeMap[label];
+    if (entries.length < 2) return;
+    for (let a = 0; a < entries.length; a++) {
+      for (let b = a + 1; b < entries.length; b++) {
+        const key = `${a}-${b}-${label}`;
+        if (seen[key]) continue;
+        seen[key] = true;
+        const ra = entries[a].el.getBoundingClientRect();
+        const rb = entries[b].el.getBoundingClientRect();
+        ctx.beginPath();
+        ctx.moveTo(ra.left + ra.width / 2, ra.top + ra.height / 2);
+        ctx.lineTo(rb.left + rb.width / 2, rb.top + rb.height / 2);
+        ctx.strokeStyle = 'rgba(0,255,65,0.15)';
+        ctx.lineWidth = 0.6;
+        ctx.setLineDash([4, 6]);
+        ctx.stroke();
+        ctx.setLineDash([]);
+      }
+    }
+  });
+}
+
+window.addEventListener('resize', resizeCanvas);
+
+// ─── GREEN OVERLAY WITH SOFT CIRCULAR REVEALS ────────────────────────────────
+const overlayCanvas = document.getElementById('overlay-canvas');
+const octx = overlayCanvas.getContext('2d');
+
+function renderOverlay() {
+  const W = window.innerWidth, H = window.innerHeight;
+  overlayCanvas.width = W;
+  overlayCanvas.height = H;
+  octx.fillStyle = '#00FF41';
+  octx.fillRect(0, 0, W, H);
+  if (clusters.length === 0) return;
+  octx.globalCompositeOperation = 'destination-out';
+  clusters.forEach(cluster => {
+    let maxDist = 140;
+    cluster.children.forEach(ch => {
+      maxDist = Math.max(maxDist, Math.hypot(ch.x - cluster.cx, ch.y - cluster.cy) + 110);
+    });
+    const screenR = maxDist * view.scale + 30;
+    const screenX = cluster.cx * view.scale + view.x;
+    const screenY = cluster.cy * view.scale + view.y;
+    const g = octx.createRadialGradient(screenX, screenY, screenR * 0.45, screenX, screenY, screenR);
+    g.addColorStop(0, 'rgba(0,0,0,1)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    octx.fillStyle = g;
+    octx.beginPath();
+    octx.arc(screenX, screenY, screenR, 0, Math.PI * 2);
+    octx.fill();
+  });
+  octx.globalCompositeOperation = 'source-over';
+}
+
+resizeCanvas();
+// Profile canvas — init after first paint so dimensions are stable
+requestAnimationFrame(initProfileCanvas);
+
+// ─── API ──────────────────────────────────────────────────────────────────────
+async function fetchLastfm(params) {
+  const url = new URL(BASE_URL);
+  Object.entries({ ...params, api_key: API_KEY, format: 'json' }).forEach(([k, v]) =>
+    url.searchParams.set(k, v)
+  );
+  const res = await fetch(url.toString());
+  if (!res.ok) throw new Error('network error');
+  return res.json();
+}
+
+async function queryLastfm(input) {
+  const q = input.trim().toLowerCase().replace(/[-\s]+/g, ' ').trim();
+
+  // Try tag
+  try {
+    const data = await fetchLastfm({ method: 'tag.getTopArtists', tag: q, limit: 30 });
+    const artists = data?.topartists?.artist;
+    if (artists && artists.length > 0) {
+      return artists.map(a => ({ name: a.name, score: parseFloat(a.tagcount || 1) }));
+    }
+  } catch (_) {}
+
+  // Try artist similar
+  try {
+    const data = await fetchLastfm({ method: 'artist.getSimilar', artist: q, limit: 30 });
+    const artists = data?.similarartists?.artist;
+    if (artists && artists.length > 0) {
+      return artists.map(a => ({ name: a.name, score: parseFloat(a.match || 1) }));
+    }
+  } catch (_) {}
+
+  // Try track similar
+  try {
+    const parts = q.split(/[-–—]/);
+    const artist = parts[0]?.trim() || q;
+    const track = parts[1]?.trim() || q;
+    const data = await fetchLastfm({ method: 'track.getSimilar', artist, track, limit: 30 });
+    const tracks = data?.similartracks?.track;
+    if (tracks && tracks.length > 0) {
+      return tracks.map(t => ({ name: `${t.artist?.name ? t.artist.name + ' — ' : ''}${t.name}`, score: parseFloat(t.match || 1) }));
+    }
+  } catch (_) {}
+
+  return null;
+}
+
+// ─── NODE PLACEMENT ───────────────────────────────────────────────────────────
+const allNodes = []; // { x, y, hw } — hw = half-width estimate for collision
+
+function nodeHalfWidth(label) {
+  return label.length * 4.5 + 22; // rough half-width in px
+}
+
+function isClear(x, y, hw) {
+  return !allNodes.some(n => {
+    const minH = hw + n.hw + 14;  // horizontal clearance
+    const minV = 22;               // vertical clearance (fixed row height)
+    return Math.abs(n.x - x) < minH && Math.abs(n.y - y) < minV;
+  });
+}
+
+function findClearPosition(cx, cy, baseAngle, minR, label) {
+  const hw = nodeHalfWidth(label);
+  for (let pass = 0; pass < 8; pass++) {
+    const rr = minR + pass * 110;
+    for (let attempt = 0; attempt < 40; attempt++) {
+      const jitter = (Math.random() - 0.5) * 1.2;
+      const a = baseAngle + jitter;
+      const x = cx + Math.cos(a) * rr;
+      const y = cy + Math.sin(a) * rr * 0.62;
+      if (isClear(x, y, hw)) return { x, y, hw };
+    }
+  }
+  // Guaranteed fallback: walk outward on the base angle until clear
+  for (let rr = minR + 900; rr < minR + 3000; rr += 80) {
+    const x = cx + Math.cos(baseAngle) * rr;
+    const y = cy + Math.sin(baseAngle) * rr * 0.62;
+    if (isClear(x, y, hw)) return { x, y, hw };
+  }
+  return { x: cx + Math.cos(baseAngle) * (minR + 3000), y: cy + Math.sin(baseAngle) * (minR + 3000) * 0.62, hw };
+}
+
+function placeNode(el, x, y) {
+  el.style.left = x + 'px';
+  el.style.top = y + 'px';
+  el.style.transform = 'translate(-50%, -50%) scale(0.8)';
+}
+
+function makeEl(label, isCentral = false, isError = false) {
+  const el = document.createElement('div');
+  el.className = 'node' + (isCentral ? ' central' : '') + (isError ? ' error-node' : '');
+  el.textContent = label;
+  document.getElementById('nodes-layer').appendChild(el);
+  return el;
+}
+
+// Find a free cluster center well away from all existing nodes
+function findFreeSpot() {
+  const W = window.innerWidth, H = window.innerHeight;
+  if (allNodes.length === 0) return { x: W / 2, y: H / 2 };
+  let bestX = W / 2, bestY = H / 2, bestDist = -1;
+  for (let i = 0; i < 120; i++) {
+    const angle = i * 2.399;
+    const r = 500 + i * 60;
+    const x = W / 2 + Math.cos(angle) * r;
+    const y = H / 2 + Math.sin(angle) * r * 0.6;
+    let minDist = Infinity;
+    allNodes.forEach(n => { minDist = Math.min(minDist, Math.hypot(n.x - x, n.y - y)); });
+    if (minDist > bestDist) { bestDist = minDist; bestX = x; bestY = y; }
+  }
+  return { x: bestX, y: bestY };
+}
+
+// ─── SEMANTIC POSITIONING ─────────────────────────────────────────────────────
+async function fetchClusterTags(query) {
+  try {
+    const data = await fetchLastfm({ method: 'artist.getTopTags', artist: query, limit: 15 });
+    const tags = data?.toptags?.tag;
+    if (tags && tags.length > 0) return tags.map(t => t.name.toLowerCase());
+  } catch (_) {}
+  // Treat the query itself as its own tag (e.g. genre inputs like "jazz")
+  return [query.toLowerCase()];
+}
+
+function jaccardSimilarity(setA, setB) {
+  if (setA.size === 0 && setB.size === 0) return 0;
+  let intersection = 0;
+  setA.forEach(t => { if (setB.has(t)) intersection++; });
+  return intersection / (setA.size + setB.size - intersection);
+}
+
+function findSemanticSpot(tagSet) {
+  // Find the existing cluster most similar by tag overlap
+  let bestCluster = null, bestSim = 0;
+  clusters.forEach(c => {
+    const existing = clusterTags[c.label.toLowerCase()];
+    if (!existing) return;
+    const sim = jaccardSimilarity(tagSet, existing);
+    if (sim > bestSim) { bestSim = sim; bestCluster = c; }
+  });
+
+  // Low similarity → place far away like before
+  if (bestSim < 0.12 || !bestCluster) return findFreeSpot();
+
+  // High similarity → place near the most similar cluster
+  // More similar = closer (600px min, up to 1400px when barely related)
+  const dist = 600 + (1 - bestSim) * 800;
+
+  // Find the angle with most open space around the target cluster
+  let bestAngle = 0, bestClearDist = -1;
+  for (let i = 0; i < 24; i++) {
+    const angle = (i / 24) * Math.PI * 2;
+    const tx = bestCluster.cx + Math.cos(angle) * dist;
+    const ty = bestCluster.cy + Math.sin(angle) * dist * 0.6;
+    let minDist = Infinity;
+    allNodes.forEach(n => { minDist = Math.min(minDist, Math.hypot(n.x - tx, n.y - ty)); });
+    if (minDist > bestClearDist) { bestClearDist = minDist; bestAngle = angle; }
+  }
+
+  return {
+    x: bestCluster.cx + Math.cos(bestAngle) * dist,
+    y: bestCluster.cy + Math.sin(bestAngle) * dist * 0.6
+  };
+}
+
+function spawnCluster(label, results, fromX, fromY, parentCx, parentCy) {
+  fetchAndPlaySong(label);
+  let cx2, cy2;
+  if (fromX !== undefined && fromY !== undefined) {
+    cx2 = fromX; cy2 = fromY;
+  } else {
+    const spot = findFreeSpot();
+    cx2 = spot.x; cy2 = spot.y;
+  }
+
+  allNodes.push({ x: cx2, y: cy2, hw: nodeHalfWidth(label) });
+
+  const centralEl = makeEl(label, true);
+  placeNode(centralEl, cx2, cy2);
+
+  const cluster = { id: Date.now(), label, cx: cx2, cy: cy2, centralEl, children: [] };
+  clusters.push(cluster);
+
+  setTimeout(() => {
+    centralEl.style.transform = 'translate(-50%, -50%) scale(1)';
+    centralEl.classList.add('visible');
+    renderOverlay();
+  }, 20);
+
+  if (!results) {
+    const errEl = makeEl('too rare to map — yet.', false, true);
+    placeNode(errEl, cx2 + 80, cy2 + 40);
+    setTimeout(() => { errEl.classList.add('visible'); redrawLines(); }, 200);
+    setTimeout(fitAll, 400);
+    return;
+  }
+
+  // Fan outward away from parent; full circle for fresh typed input
+  const hasParent = parentCx !== undefined && parentCy !== undefined;
+  const outwardAngle = hasParent ? Math.atan2(cy2 - parentCy, cx2 - parentCx) : 0;
+  const arcSpan = hasParent ? Math.PI * 1.35 : Math.PI * 2;
+
+  const count = results.length;
+  const maxScore = Math.max(...results.map(r => r.score || 1), 1);
+
+  // Multi-ring: ~10 nodes per ring so they never crowd a single orbit
+  const nodesPerRing = 10;
+
+  results.forEach((item, i) => {
+    const ring = Math.floor(i / nodesPerRing);
+    const indexInRing = i % nodesPerRing;
+    const countInRing = Math.min(nodesPerRing, count - ring * nodesPerRing);
+    const minR = 300 + ring * 160;
+
+    const baseAngle = hasParent
+      ? outwardAngle - arcSpan / 2 + (indexInRing / (countInRing - 1 || 1)) * arcSpan
+      : (i / count) * Math.PI * 2;
+
+    const pos = findClearPosition(cx2, cy2, baseAngle, minR, item.name);
+    allNodes.push(pos);
+
+    const childEl = makeEl(item.name);
+    const norm = (item.score || 1) / maxScore;
+    childEl.style.fontSize = (10 + norm * 4) + 'px';
+    childEl.style.cursor = 'pointer';
+    placeNode(childEl, pos.x, pos.y);
+
+    childEl.addEventListener('click', () => triggerQuery(item.name, pos.x, pos.y, cx2, cy2));
+
+    const delay = 80 + i * 35;
+    setTimeout(() => { childEl.classList.add('visible'); redrawLines(); renderOverlay(); }, delay);
+
+    cluster.children.push({ el: childEl, x: pos.x, y: pos.y, label: item.name });
+
+    if (!nodeMap[item.name]) nodeMap[item.name] = [];
+    nodeMap[item.name].push({ cluster, el: childEl, x: pos.x, y: pos.y });
+  });
+
+  const totalDelay = 80 + count * 35 + 150;
+  if (hasParent) {
+    setTimeout(() => fitCluster(cluster, parentCx, parentCy), totalDelay);
+  } else {
+    setTimeout(fitAll, totalDelay);
+  }
+}
+
+// ─── LOCAL FIT: zoom to a single cluster + optional parent ───────────────────
+function fitCluster(cluster, parentCx, parentCy) {
+  let minX = cluster.cx - 120, minY = cluster.cy - 30;
+  let maxX = cluster.cx + 120, maxY = cluster.cy + 30;
+
+  cluster.children.forEach(ch => {
+    minX = Math.min(minX, ch.x - 120);
+    minY = Math.min(minY, ch.y - 30);
+    maxX = Math.max(maxX, ch.x + 120);
+    maxY = Math.max(maxY, ch.y + 30);
+  });
+
+  // Pull in the parent cluster centre for context
+  if (parentCx !== undefined) {
+    minX = Math.min(minX, parentCx - 120);
+    minY = Math.min(minY, parentCy - 30);
+    maxX = Math.max(maxX, parentCx + 120);
+    maxY = Math.max(maxY, parentCy + 30);
+  }
+
+  const pad = 90;
+  const W = window.innerWidth, H = window.innerHeight - 90;
+  view.scale = Math.min(
+    W  / ((maxX - minX) + pad * 2),
+    H  / ((maxY - minY) + pad * 2),
+    1
+  );
+  view.x = W / 2 - ((minX + maxX) / 2) * view.scale;
+  view.y = H / 2 - ((minY + maxY) / 2) * view.scale;
+  applyView(true);
+}
+
+// ─── VIEW TRANSFORM (pan + zoom) ─────────────────────────────────────────────
+const view = { x: 0, y: 0, scale: 1 };
+
+function applyView(animated = false) {
+  const layer = document.getElementById('nodes-layer');
+  layer.style.transition = animated ? 'transform 0.7s cubic-bezier(0.4,0,0.2,1)' : 'none';
+  layer.style.transform = `translate(${view.x}px,${view.y}px) scale(${view.scale})`;
+  if (animated) setTimeout(() => { redrawLines(); renderOverlay(); }, 750);
+  else { redrawLines(); renderOverlay(); }
+}
+
+// ─── FIT ALL NODES IN VIEWPORT ───────────────────────────────────────────────
+function fitAll() {
+  if (allNodes.length === 0) return;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  allNodes.forEach(n => {
+    minX = Math.min(minX, n.x - 120);
+    minY = Math.min(minY, n.y - 30);
+    maxX = Math.max(maxX, n.x + 120);
+    maxY = Math.max(maxY, n.y + 30);
+  });
+  const pad = 60;
+  const W = window.innerWidth, H = window.innerHeight - 90;
+  view.scale = Math.min(W / ((maxX - minX) + pad * 2), H / ((maxY - minY) + pad * 2), 1);
+  view.x = W / 2 - ((minX + maxX) / 2) * view.scale;
+  view.y = H / 2 - ((minY + maxY) / 2) * view.scale;
+  applyView(true);
+}
+
+// ─── PAN ──────────────────────────────────────────────────────────────────────
+let dragging = false, dragStart = { x: 0, y: 0 }, viewStart = { x: 0, y: 0 };
+
+document.addEventListener('mousedown', e => {
+  if (e.target.classList.contains('node') || e.target.closest('#input-wrap') || e.target.closest('#logo') || e.target.closest('#overlap-toggle') || e.target.closest('#profile-panel')) return;
+  dragging = true;
+  dragStart = { x: e.clientX, y: e.clientY };
+  viewStart = { x: view.x, y: view.y };
+  document.body.classList.add('dragging');
+});
+
+document.addEventListener('mousemove', e => {
+  if (!dragging) return;
+  view.x = viewStart.x + (e.clientX - dragStart.x);
+  view.y = viewStart.y + (e.clientY - dragStart.y);
+  applyView(false);
+});
+
+document.addEventListener('mouseup', () => {
+  dragging = false;
+  document.body.classList.remove('dragging');
+});
+
+// ─── ZOOM (scroll wheel) ──────────────────────────────────────────────────────
+document.addEventListener('wheel', e => {
+  e.preventDefault();
+  const factor = e.deltaY < 0 ? 1.1 : 0.9;
+  const newScale = Math.max(0.08, Math.min(6, view.scale * factor));
+  const ratio = newScale / view.scale;
+  view.x = e.clientX - (e.clientX - view.x) * ratio;
+  view.y = e.clientY - (e.clientY - view.y) * ratio;
+  view.scale = newScale;
+  applyView(false);
+}, { passive: false });
+
+// ─── TOUCH: pan + pinch zoom ──────────────────────────────────────────────────
+let touches = {}, pinchDist0 = null, pinchScale0 = null, touchPanStart = null, viewPanStart = null;
+
+function touchDist(t) {
+  const ids = Object.keys(t);
+  if (ids.length < 2) return null;
+  const a = t[ids[0]], b = t[ids[1]];
+  return Math.hypot(a.x - b.x, a.y - b.y);
+}
+function touchMid(t) {
+  const ids = Object.keys(t);
+  const a = t[ids[0]], b = t[ids[1]];
+  return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+}
+
+document.addEventListener('touchstart', e => {
+  if (e.target.closest('#overlap-toggle')) return;
+  [...e.changedTouches].forEach(t => { touches[t.identifier] = { x: t.clientX, y: t.clientY }; });
+  const ids = Object.keys(touches);
+  if (ids.length === 1) {
+    touchPanStart = { ...touches[ids[0]] };
+    viewPanStart = { x: view.x, y: view.y };
+  }
+  if (ids.length === 2) {
+    pinchDist0 = touchDist(touches);
+    pinchScale0 = view.scale;
+  }
+}, { passive: true });
+
+document.addEventListener('touchmove', e => {
+  e.preventDefault();
+  [...e.changedTouches].forEach(t => { touches[t.identifier] = { x: t.clientX, y: t.clientY }; });
+  const ids = Object.keys(touches);
+  if (ids.length === 1 && touchPanStart && viewPanStart) {
+    view.x = viewPanStart.x + (touches[ids[0]].x - touchPanStart.x);
+    view.y = viewPanStart.y + (touches[ids[0]].y - touchPanStart.y);
+    applyView(false);
+  } else if (ids.length === 2 && pinchDist0) {
+    const dist = touchDist(touches);
+    const mid = touchMid(touches);
+    const newScale = Math.max(0.08, Math.min(6, pinchScale0 * (dist / pinchDist0)));
+    const ratio = newScale / view.scale;
+    view.x = mid.x - (mid.x - view.x) * ratio;
+    view.y = mid.y - (mid.y - view.y) * ratio;
+    view.scale = newScale;
+    applyView(false);
+  }
+}, { passive: false });
+
+document.addEventListener('touchend', e => {
+  [...e.changedTouches].forEach(t => { delete touches[t.identifier]; });
+  const ids = Object.keys(touches);
+  if (ids.length < 2) { pinchDist0 = null; pinchScale0 = null; }
+  if (ids.length === 1) {
+    touchPanStart = { ...touches[ids[0]] };
+    viewPanStart = { x: view.x, y: view.y };
+  }
+}, { passive: true });
+
+// ─── INPUT HANDLER ────────────────────────────────────────────────────────────
+const input = document.getElementById('search-input');
+const btn = document.getElementById('submit-btn');
+const loader = document.getElementById('loading-indicator');
+
+async function triggerQuery(val, fromX, fromY, parentCx, parentCy) {
+  loader.classList.add('visible');
+  const [results, tags] = await Promise.all([queryLastfm(val), fetchClusterTags(val)]);
+  loader.classList.remove('visible');
+  const tagSet = new Set(tags);
+  clusterTags[val.toLowerCase()] = tagSet;
+  scoreTagsAgainstCategories(tagSet);
+  spawnCluster(val, results, fromX, fromY, parentCx, parentCy);
+  redrawLines();
+}
+
+async function handleSubmit() {
+  const val = input.value.trim();
+  if (!val) return;
+
+  if (API_KEY === 'YOUR_LASTFM_API_KEY') {
+    document.getElementById('api-key-banner').style.display = 'block';
+    return;
+  }
+
+  input.disabled = true;
+  btn.disabled = true;
+  loader.classList.add('visible');
+
+  const [results, tags] = await Promise.all([queryLastfm(val), fetchClusterTags(val)]);
+  const tagSet = new Set(tags);
+  clusterTags[val.toLowerCase()] = tagSet;
+  scoreTagsAgainstCategories(tagSet);
+
+  loader.classList.remove('visible');
+  input.value = '';
+  input.disabled = false;
+  btn.disabled = false;
+  input.placeholder = 'DROP A.... word or song or artist or album or genre';
+
+  const spot = findSemanticSpot(tagSet);
+  spawnCluster(val, results, spot.x, spot.y);
+  redrawLines();
+}
+
+btn.addEventListener('click', handleSubmit);
+input.addEventListener('keydown', e => { if (e.key === 'Enter') handleSubmit(); });
+
+// Continuously redraw lines on animation frames when nodes are animating
+let rafRunning = false;
+function startRedrawLoop() {
+  if (rafRunning) return;
+  rafRunning = true;
+  let frames = 0;
+  function loop() {
+    redrawLines();
+    frames++;
+    if (frames < 120) requestAnimationFrame(loop);
+    else rafRunning = false;
+  }
+  requestAnimationFrame(loop);
+}
+
+// ─── AUDIO: overlapping song previews for overwhelm ──────────────────────────
+// Each entry: { audio, title, artist, row }
+const activeAudios = [];
+const MAX_TRACKS = 8;
+let overlapOn = true;
+
+const overlapToggleEl = document.getElementById('overlap-toggle');
+overlapToggleEl.addEventListener('click', () => {
+  overlapOn = !overlapOn;
+  overlapToggleEl.classList.toggle('on', overlapOn);
+  overlapToggleEl.querySelector('.toggle-state').textContent = overlapOn ? 'on' : 'off';
+
+  // When switching to single mode, immediately fade out all but the newest track
+  if (!overlapOn && activeAudios.length > 1) {
+    const keep = activeAudios.pop();
+    while (activeAudios.length) { const e = activeAudios.shift(); fadeOut(e.audio); }
+    activeAudios.push(keep);
+    renderNowPlaying();
+  }
+});
+
+const nowPlayingBox = document.getElementById('now-playing');
+
+function renderNowPlaying() {
+  // Remove all rows then re-add
+  nowPlayingBox.querySelectorAll('.np-row').forEach(r => r.remove());
+  if (activeAudios.length === 0) {
+    nowPlayingBox.style.display = 'none';
+    return;
+  }
+  nowPlayingBox.style.display = 'block';
+  activeAudios.forEach(entry => {
+    const row = document.createElement('div');
+    row.className = 'np-row';
+    row.innerHTML = `<div class="np-dot"></div><div class="np-text">${entry.title} <span>— ${entry.artist}</span></div>`;
+    entry.row = row;
+    nowPlayingBox.appendChild(row);
+  });
+}
+
+async function fetchAndPlaySong(query) {
+  try {
+    const res = await fetch(
+      `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&media=music&entity=song&limit=30`
+    );
+    const data = await res.json();
+    const results = (data?.results || []).filter(r => r.previewUrl);
+    if (results.length === 0) return;
+
+    const track = results[Math.floor(Math.random() * results.length)];
+    const audio = new Audio(track.previewUrl);
+    const entry = { audio, title: track.trackName, artist: track.artistName };
+
+    if (overlapOn) {
+      const baseVol = 0.18 + Math.min(activeAudios.length, 5) * 0.06;
+      audio.volume = Math.min(baseVol, 0.7);
+      if (activeAudios.length >= MAX_TRACKS) {
+        const oldest = activeAudios.shift();
+        fadeOut(oldest.audio);
+      }
+    } else {
+      while (activeAudios.length) { const e = activeAudios.shift(); fadeOut(e.audio); }
+      audio.volume = 0.55;
+    }
+
+    activeAudios.push(entry);
+    renderNowPlaying();
+    audio.play().catch(() => {});
+
+    audio.addEventListener('ended', () => {
+      const idx = activeAudios.findIndex(e => e.audio === audio);
+      if (idx > -1) activeAudios.splice(idx, 1);
+      renderNowPlaying();
+    });
+  } catch (_) {}
+}
+
+function fadeOut(audio) {
+  let vol = audio.volume;
+  const step = setInterval(() => {
+    vol = Math.max(0, vol - 0.04);
+    try { audio.volume = vol; } catch (_) {}
+    if (vol <= 0) { audio.pause(); clearInterval(step); }
+  }, 80);
+}
+
+// ─── SAVE / LOAD ZONE ────────────────────────────────────────────────────────
+document.getElementById('save-btn').addEventListener('click', () => {
+  const data = {
+    view: { ...view },
+    clusters: clusters.map(c => ({
+      label: c.label,
+      cx: c.cx,
+      cy: c.cy,
+      children: c.children.map(ch => ({ label: ch.label, x: ch.x, y: ch.y }))
+    }))
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `zone-${new Date().toISOString().slice(0,10)}.zone`;
+  a.click();
+  URL.revokeObjectURL(url);
+});
+
+document.getElementById('load-btn').addEventListener('click', () => {
+  document.getElementById('load-input').click();
+});
+
+document.getElementById('pdf-btn').addEventListener('click', () => window.print());
+
+document.getElementById('load-input').addEventListener('change', e => {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      const data = JSON.parse(ev.target.result);
+      loadZone(data);
+    } catch (_) { alert('Could not read zone file.'); }
+  };
+  reader.readAsText(file);
+  e.target.value = '';
+});
+
+function loadZone(data) {
+  // Clear existing state
+  document.getElementById('nodes-layer').innerHTML = '';
+  clusters.length = 0;
+  allNodes.length = 0;
+  Object.keys(nodeMap).forEach(k => delete nodeMap[k]);
+
+  // Restore view
+  view.x = data.view.x;
+  view.y = data.view.y;
+  view.scale = data.view.scale;
+
+  // Rebuild clusters
+  data.clusters.forEach(cData => {
+    allNodes.push({ x: cData.cx, y: cData.cy, hw: nodeHalfWidth(cData.label) });
+
+    const centralEl = makeEl(cData.label, true);
+    placeNode(centralEl, cData.cx, cData.cy);
+    setTimeout(() => { centralEl.style.transform = 'translate(-50%, -50%) scale(1)'; centralEl.classList.add('visible'); }, 20);
+
+    const cluster = { id: Date.now() + Math.random(), label: cData.label, cx: cData.cx, cy: cData.cy, centralEl, children: [] };
+    clusters.push(cluster);
+
+    cData.children.forEach((chData, i) => {
+      allNodes.push({ x: chData.x, y: chData.y, hw: nodeHalfWidth(chData.label) });
+      const childEl = makeEl(chData.label);
+      childEl.style.cursor = 'pointer';
+      placeNode(childEl, chData.x, chData.y);
+      childEl.addEventListener('click', () => triggerQuery(chData.label, chData.x, chData.y, cData.cx, cData.cy));
+
+      setTimeout(() => { childEl.classList.add('visible'); }, 60 + i * 20);
+
+      cluster.children.push({ el: childEl, x: chData.x, y: chData.y, label: chData.label });
+
+      if (!nodeMap[chData.label]) nodeMap[chData.label] = [];
+      nodeMap[chData.label].push({ cluster, el: childEl, x: chData.x, y: chData.y });
+    });
+  });
+
+  setTimeout(() => { applyView(true); redrawLines(); renderOverlay(); }, 200);
+}
+
+// Your zones toggle
+document.getElementById('zone-toggle-btn').addEventListener('click', () => {
+  document.getElementById('zone-menu').classList.toggle('open');
+  document.getElementById('zone-toggle-btn').classList.toggle('open');
+});
+
+// Exclude zone actions from drag
+document.getElementById('zone-actions').addEventListener('mousedown', e => e.stopPropagation());
+
+// ─── PROFILE EXPAND / COLLAPSE ───────────────────────────────────────────────
+document.getElementById('profile-panel').addEventListener('click', e => {
+  e.stopPropagation();
+  expandProfile();
+});
+
+document.addEventListener('click', () => {
+  if (profileExpanded) collapseProfile();
+});
+
+</script>
+</body>
+</html>
